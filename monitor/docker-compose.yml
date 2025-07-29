@@ -1,0 +1,126 @@
+services:
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus-server
+    network_mode: host
+    volumes:
+      - /opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /opt/prometheus/web.yaml:/etc/prometheus/web.yaml:ro
+      - /opt/prometheus/certs/server.crt:/etc/prometheus/server.crt:ro
+      - /opt/prometheus/certs/server.key:/etc/prometheus/server.key:ro
+    command:
+      - '--web.config.file=/etc/prometheus/web.yaml'
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana-server
+    ports:
+      - "3000:3000"
+    volumes:
+      - /opt/grafana:/var/lib/grafana
+    restart: unless-stopped
+    environment:
+      - GF_SERVER_ROOT_URL=http://monitor.as.corp:3000
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST=smtp.gmail.com:587
+      - GF_SMTP_USER=jihed.makthri@gmail.com
+      - GF_SMTP_FROM_ADDRESS=jihed.makthri@gmail.com
+      - GF_SMTP_FROM_NAME=Grafana-Alerts
+    secrets:
+      - app-pass-gmail
+    entrypoint: >
+      sh -c "export GF_SMTP_PASSWORD=$(cat /run/secrets/app-pass-gmail) && exec /run.sh"
+    depends_on: 
+      - "prometheus"
+
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    network_mode: host
+    pid: host
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+      - SYS_PTRACE
+    volumes:
+      - /:/host:ro,rslave
+      - /run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket:ro
+    command:
+      - --path.rootfs=/host
+      - --collector.arp
+      - --collector.cpu
+      - --collector.diskstats
+      - --collector.ethtool
+      - --collector.filesystem
+      - --collector.hwmon
+      - --collector.interrupts
+      - --collector.netdev
+      - --collector.slabinfo
+      - --collector.sysctl
+      - --collector.systemd
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME_FILE: /run/secrets/influxdb2-admin-username
+      DOCKER_INFLUXDB_INIT_PASSWORD_FILE: /run/secrets/influxdb2-admin-password
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN_FILE: /run/secrets/influxdb2-admin-token
+      DOCKER_INFLUXDB_INIT_ORG: alliancesoftware
+      DOCKER_INFLUXDB_INIT_BUCKET: bucket1
+    secrets:
+      - influxdb2-admin-username
+      - influxdb2-admin-password
+      - influxdb2-admin-token
+    volumes:
+      - type: bind
+        source: /opt/influxdb/data
+        target: /var/lib/influxdb2
+      - type: bind
+        source: /opt/influxdb/config
+        target: /etc/influxdb2
+    depends_on:
+      - "grafana"
+
+  telegraf:
+    image: telegraf:latest
+    hostname: telegraf
+    container_name: telegraf
+    entrypoint: ./entrypoint.sh
+    secrets:
+      - telegraf-token
+      - vcenter-user-ro
+      - vcenter-user-pro
+      - vcenter-url
+    volumes:
+      - type: bind
+        source: /opt/telegraf/telegraf.conf
+        target: /etc/telegraf/telegraf.conf
+      - type: bind
+        source: /opt/telegraf/entrypoint.sh
+        target: /entrypoint.sh
+    restart: unless-stopped
+    depends_on:
+      - "influxdb"
+secrets:
+  influxdb2-admin-username:
+    file: ~/.env.influxdb2-admin-username
+  influxdb2-admin-password:
+    file: ~/.env.influxdb2-admin-password
+  influxdb2-admin-token:
+    file: ~/.env.influxdb2-admin-token
+  telegraf-token:
+    file: ~/.env.telegraf-token
+  app-pass-gmail:
+    file: ~/.env.app-pass-gmail
+  vcenter-user-ro:
+    file: ~/.env.vcenter-monitor-user-login
+  vcenter-user-pro:
+    file: ~/.env.vcenter-monitor-readonly
+  vcenter-url:
+    file: ~/.env.vcenter-url
