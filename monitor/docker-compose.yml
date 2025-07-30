@@ -6,8 +6,8 @@ services:
     volumes:
       - /opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - /opt/prometheus/web.yaml:/etc/prometheus/web.yaml:ro
-      - /opt/prometheus/certs/server.crt:/etc/prometheus/server.crt:ro
-      - /opt/prometheus/certs/server.key:/etc/prometheus/server.key:ro
+      - /opt/certs/prom-cert/prometheus.crt:/etc/prometheus/prometheus.crt:ro
+      - /opt/certs/prom-cert/prometheus.key:/etc/prometheus/prometheus.key:ro
     command:
       - '--web.config.file=/etc/prometheus/web.yaml'
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -20,14 +20,23 @@ services:
       - "3000:3000"
     volumes:
       - /opt/grafana:/var/lib/grafana
+      - /opt/certs/graf-cert/grafana.key:/etc/grafana/grafana.key:ro
+      - /opt/certs/graf-cert/grafana.crt:/etc/grafana/grafana.crt:ro
     restart: unless-stopped
     environment:
-      - GF_SERVER_ROOT_URL=http://monitor.as.corp:3000
+      - GF_SERVER_ROOT_URL=https://monitor.as.corp:3000
       - GF_SMTP_ENABLED=true
       - GF_SMTP_HOST=smtp.gmail.com:587
       - GF_SMTP_USER=jihed.makthri@gmail.com
       - GF_SMTP_FROM_ADDRESS=jihed.makthri@gmail.com
       - GF_SMTP_FROM_NAME=Grafana-Alerts
+      - GF_SERVER_HTTP_PORT=3000
+      - GF_SERVER_DOMAIN=as.corp
+      - GF_SERVER_CERT_KEY=/etc/grafana/grafana.key
+      - GF_SERVER_CERT_FILE=/etc/grafana/grafana.crt
+      - GF_SERVER_ENFORCE_DOMAIN=False
+      - GF_SERVER_PROTOCOL=https
+      
     secrets:
       - app-pass-gmail
     entrypoint: >
