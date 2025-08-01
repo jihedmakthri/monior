@@ -5,6 +5,7 @@ services:
     network_mode: host
     volumes:
       - /opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /opt/certs/ca.crt:/etc/prometheus/ca.crt:ro
       - /opt/prometheus/web.yaml:/etc/prometheus/web.yaml:ro
       - /opt/certs/prom-cert/prometheus.crt:/etc/prometheus/prometheus.crt:ro
       - /opt/certs/prom-cert/prometheus.key:/etc/prometheus/prometheus.key:ro
@@ -14,14 +15,17 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana
+    build: ./grafana_custom_img
     container_name: grafana-server
+    privileged: true
     ports:
       - "3000:3000"
     volumes:
       - /opt/grafana:/var/lib/grafana
+      - /opt/grafana-entrypoint.sh:/entrypoint.sh
       - /opt/certs/graf-cert/grafana.key:/etc/grafana/grafana.key:ro
       - /opt/certs/graf-cert/grafana.crt:/etc/grafana/grafana.crt:ro
+      - /opt/certs/ca.crt:/usr/local/share/ca-certificates/ca.crt:ro
     restart: unless-stopped
     environment:
       - GF_SERVER_ROOT_URL=https://monitor.as.corp:3000
@@ -36,12 +40,12 @@ services:
       - GF_SERVER_CERT_FILE=/etc/grafana/grafana.crt
       - GF_SERVER_ENFORCE_DOMAIN=False
       - GF_SERVER_PROTOCOL=https
-      
+
     secrets:
       - app-pass-gmail
-    entrypoint: >
-      sh -c "export GF_SMTP_PASSWORD=$(cat /run/secrets/app-pass-gmail) && exec /run.sh"
-    depends_on: 
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    command: []
+    depends_on:
       - "prometheus"
 
   node-exporter:
@@ -56,6 +60,9 @@ services:
     volumes:
       - /:/host:ro,rslave
       - /run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket:ro
+      - /opt/node-exporter/config.yml:/etc/node-exporter/config.yml:ro
+      - /opt/certs/node-exp-cert/exporter.crt:/etc/node-exporter/exporter.crt:ro
+      - /opt/certs/node-exp-cert/exporter.key:/etc/node-exporter/exporter.key:ro
     command:
       - --path.rootfs=/host
       - --collector.arp
@@ -69,6 +76,7 @@ services:
       - --collector.slabinfo
       - --collector.sysctl
       - --collector.systemd
+      - --web.config.file=/etc/node-exporter/config.yml
     restart: unless-stopped
 
   influxdb:
