@@ -1,0 +1,13 @@
+[Unit]
+Description=VMware Inventory to InfluxDB
+
+[Service]
+ExecStart=/usr/bin/pwsh /opt/scripts/vm_state.ps1
+WorkingDirectory=/opt/scripts
+User=root
+Restart=on-failure
+RestartSec=10s# Name of your InfluxDB container
+Environment="HOME=/root"
+
+[Install]
+WantedBy=multi-user.target

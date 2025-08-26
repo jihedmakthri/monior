@@ -1,0 +1,10 @@
+[Unit]
+Description=Run VMware Inventory script every minute
+
+[Timer]
+OnBootSec=30sec
+OnUnitActiveSec=60sec
+Unit=vm_state.service
+
+[Install]
+WantedBy=timers.target
